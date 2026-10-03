@@ -18,7 +18,8 @@ public final class InstrumentationStatusStore {
     public static void recordBinding() {
         if (!GuestRuntimeRegistry.isPrimaryProcess()) return;
         String packageName = GuestRuntimeRegistry.getGuestPackageName();
-        String mode = InstrumentationSettings.getModeForPackage(packageName);
+        int userId = GuestRuntimeRegistry.getGuestUserId();
+        String mode = InstrumentationSettings.getModeForPackage(packageName, userId);
         String state;
         if (!GuestRuntimeRegistry.isInstrumentationEnabled()) {
             state = "disabled";
@@ -36,7 +37,7 @@ public final class InstrumentationStatusStore {
                 .putString("runtime_class_loader", classLoaderDescription())
                 .putBoolean("runtime_enabled", GuestRuntimeRegistry.isInstrumentationEnabled())
                 .putString("runtime_mode", mode)
-                .putString("runtime_script", InstrumentationSettings.getScriptPathForPackage(packageName))
+                .putString("runtime_script", InstrumentationSettings.getScriptPathForPackage(packageName, userId))
                 .putString("runtime_state", state)
                 .putString("runtime_error", null)
                 .putLong("runtime_timestamp", GuestRuntimeRegistry.getInitializationTimestamp())

@@ -18,7 +18,8 @@ public final class FridaGadgetLoader {
     /** Listener mode starts immediately; autonomous scripts wait for the guest lifecycle. */
     public static boolean loadAtProcessBind() {
         String packageName = GuestRuntimeRegistry.getGuestPackageName();
-        String mode = InstrumentationSettings.getModeForPackage(packageName);
+        int userId = GuestRuntimeRegistry.getGuestUserId();
+        String mode = InstrumentationSettings.getModeForPackage(packageName, userId);
         if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode)) {
             Log.i(TAG, "Deferring on-device agent until the guest application is ready");
             return false;
@@ -32,7 +33,8 @@ public final class FridaGadgetLoader {
             return false;
         }
         String packageName = GuestRuntimeRegistry.getGuestPackageName();
-        String mode = InstrumentationSettings.getModeForPackage(packageName);
+        int userId = GuestRuntimeRegistry.getGuestUserId();
+        String mode = InstrumentationSettings.getModeForPackage(packageName, userId);
         if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode)
                 && !GuestRuntimeRegistry.isPrimaryProcess()) {
             Log.i(TAG, "Skipping on-device agent in secondary process "
@@ -46,13 +48,13 @@ public final class FridaGadgetLoader {
             try {
                 InstrumentationStatusStore.recordBinding();
                 if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode)) {
-                    String scriptPath = InstrumentationSettings.getScriptPathForPackage(packageName);
+                    String scriptPath = InstrumentationSettings.getScriptPathForPackage(packageName, userId);
                     File runtime = LocalScriptGadgetRuntime.prepare(packageName, scriptPath);
                     Log.i(TAG, "Loading on-device Frida agent for " + GuestRuntimeRegistry.getGuestProcessName());
                     System.load(runtime.getAbsolutePath());
                 } else {
                     Log.i(TAG, "Loading Frida Gadget listener for " + GuestRuntimeRegistry.getGuestProcessName());
-                    File runtime = DownloadedGadgetRuntime.prepareListener(packageName);
+                    File runtime = DownloadedGadgetRuntime.prepareListener(packageName, userId);
                     System.load(runtime.getAbsolutePath());
                 }
                 loaded = true;

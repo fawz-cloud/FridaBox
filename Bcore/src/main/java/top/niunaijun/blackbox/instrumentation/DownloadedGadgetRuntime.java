@@ -23,11 +23,11 @@ final class DownloadedGadgetRuntime {
     private DownloadedGadgetRuntime() {
     }
 
-    static File prepareListener(String packageName) throws IOException {
+    static File prepareListener(String packageName, int userId) throws IOException {
         Context context = BlackBoxCore.getContext();
         File source = requireSelected(context);
         File directory = new File(context.getFilesDir(),
-                RUNTIME_ROOT + File.separator + safeName(packageName));
+                RUNTIME_ROOT + File.separator + instanceName(packageName, userId));
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("Unable to create the Gadget runtime directory");
         }
@@ -118,6 +118,11 @@ final class DownloadedGadgetRuntime {
 
     private static String safeName(String value) {
         return value == null ? "unknown" : value.replaceAll("[^A-Za-z0-9._-]", "_");
+    }
+
+    /** Instance 0 keeps the legacy package-only directory so existing copies survive. */
+    private static String instanceName(String packageName, int userId) {
+        return userId == 0 ? safeName(packageName) : safeName(packageName) + "_" + userId;
     }
 
     private static void copyAtomically(File source, File destination) throws IOException {

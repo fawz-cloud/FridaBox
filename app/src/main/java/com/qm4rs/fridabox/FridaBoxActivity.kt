@@ -54,6 +54,7 @@ import com.google.android.material.switchmaterial.SwitchMaterial
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
 import top.niunaijun.blackbox.BlackBoxCore
+import top.niunaijun.blackbox.core.env.BEnvironment
 import top.niunaijun.blackbox.instrumentation.InstrumentationSettings
 import top.niunaijun.blackbox.instrumentation.RuntimeBridgeCatalog
 import top.niunaijun.blackbox.utils.ProcessAbi
@@ -81,6 +82,7 @@ class FridaBoxActivity : AppCompatActivity() {
     private var installedAppsRequest = 0
     private var changingNavigation = false
     private var pendingScriptPackage: String? = null
+    private var pendingScriptUser: Int = 0
     private var importMenuOverlay: FrameLayout? = null
     private var importMenuAnimator: AnimatorSet? = null
     private var importMenuAnimationGeneration = 0
@@ -100,8 +102,10 @@ class FridaBoxActivity : AppCompatActivity() {
     }
     private val scriptPicker = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         val packageName = pendingScriptPackage
+        val userId = pendingScriptUser
         pendingScriptPackage = null
-        if (uri != null && packageName != null) importAgent(packageName, uri)
+        pendingScriptUser = 0
+        if (uri != null && packageName != null) importAgent(packageName, userId, uri)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -109,6 +113,7 @@ class FridaBoxActivity : AppCompatActivity() {
         binding = ActivityFridaboxBinding.inflate(layoutInflater)
         setContentView(binding.root)
         pendingScriptPackage = savedInstanceState?.getString("pending_script_package")
+        pendingScriptUser = savedInstanceState?.getInt("pending_script_user", 0) ?: 0
         settings.edit()
             .remove(InstrumentationSettings.KEY_ENABLED)
             .remove(InstrumentationSettings.KEY_ADVANCED_LOGS)
@@ -144,6 +149,7 @@ class FridaBoxActivity : AppCompatActivity() {
 
     override fun onSaveInstanceState(outState: Bundle) {
         outState.putString("pending_script_package", pendingScriptPackage)
+        outState.putInt("pending_script_user", pendingScriptUser)
         super.onSaveInstanceState(outState)
     }
 
@@ -186,19 +192,25 @@ class FridaBoxActivity : AppCompatActivity() {
         setLoading(true)
         worker.execute {
             val result = runCatching {
-                BlackBoxCore.get().getInstalledPackages(PackageManager.GET_META_DATA, 0)
-                    .sortedBy { info ->
-                        runCatching {
-                            info.applicationInfo?.loadLabel(BlackBoxCore.getPackageManager())?.toString()
-                        }.getOrNull().orEmpty().ifBlank { info.packageName }.lowercase(Locale.ROOT)
-                    }
+                val pm = BlackBoxCore.getPackageManager()
+                val userIds = BlackBoxCore.get().users.map { it.id }.ifEmpty { listOf(0) }.sorted()
+                userIds.flatMap { userId ->
+                    BlackBoxCore.get().getInstalledPackages(PackageManager.GET_META_DATA, userId)
+                        .map { info -> info to userId }
+                }.sortedWith(compareBy(
+                    { (info, _) ->
+                        runCatching { info.applicationInfo?.loadLabel(pm)?.toString() }
+                            .getOrNull().orEmpty().ifBlank { info.packageName }.lowercase(Locale.ROOT)
+                    },
+                    { (_, userId) -> userId }
+                ))
             }
             runOnUiThread {
                 if (generation != screenGeneration || isFinishing) return@runOnUiThread
                 setLoading(false)
-                result.onSuccess { packages ->
-                    packages.forEach { launcher.addView(appIcon(it, cellSizeDp)) }
-                    val occupiedSlots = packages.size
+                result.onSuccess { entries ->
+                    entries.forEach { (info, userId) -> launcher.addView(appIcon(info, userId, cellSizeDp)) }
+                    val occupiedSlots = entries.size
                     val completedRows = (occupiedSlots + columns - 1) / columns
                     val totalSlots = maxOf(minimumRows, completedRows) * columns
                     repeat(totalSlots - occupiedSlots) {
@@ -215,17 +227,17 @@ class FridaBoxActivity : AppCompatActivity() {
         }
     }
 
-    private fun appIcon(info: PackageInfo, cellSizeDp: Int): View {
+    private fun appIcon(info: PackageInfo, userId: Int, cellSizeDp: Int): View {
         val packageName = info.packageName
         val appLabel = runCatching {
             info.applicationInfo?.loadLabel(BlackBoxCore.getPackageManager())?.toString()
         }.getOrNull().orEmpty().ifBlank { packageName.substringAfterLast('.') }
         return FrameLayout(this).apply {
-            contentDescription = appLabel
+            contentDescription = if (userId == 0) appLabel else "$appLabel · instance ${userId + 1}"
             isClickable = true
             isFocusable = true
             background = ContextCompat.getDrawable(this@FridaBoxActivity, R.drawable.bg_launcher_cell)
-            setOnClickListener { showAppLaunchDialog(info, this) }
+            setOnClickListener { showAppLaunchDialog(info, userId, this) }
             addView(ImageView(this@FridaBoxActivity).apply {
                 runCatching {
                     setImageDrawable(info.applicationInfo?.loadIcon(BlackBoxCore.getPackageManager()))
@@ -236,6 +248,13 @@ class FridaBoxActivity : AppCompatActivity() {
                 dp((cellSizeDp * 0.62f).toInt().coerceIn(48, 64)),
                 Gravity.CENTER
             ))
+            if (userId != 0) {
+                addView(instanceBadge(userId), FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT,
+                    Gravity.TOP or Gravity.END
+                ).apply { setMargins(0, dp(6), dp(6), 0) })
+            }
             layoutParams = launcherCellLayoutParams(cellSizeDp)
         }
     }
@@ -255,7 +274,7 @@ class FridaBoxActivity : AppCompatActivity() {
         }
     }
 
-    private fun showAppLaunchDialog(info: PackageInfo, source: View) {
+    private fun showAppLaunchDialog(info: PackageInfo, userId: Int, source: View) {
         val dialog = Dialog(this)
         val root = FrameLayout(this).apply {
             importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_YES
@@ -274,7 +293,7 @@ class FridaBoxActivity : AppCompatActivity() {
             resetAppIconMorph(source)
             after?.invoke()
         }
-        val panel = appCard(info) { after -> dismissAnimated(after) }.apply {
+        val panel = appCard(info, userId) { after -> dismissAnimated(after) }.apply {
             isClickable = true
             alpha = 0f
         }
@@ -442,10 +461,11 @@ class FridaBoxActivity : AppCompatActivity() {
 
     private fun appCard(
         info: PackageInfo,
+        userId: Int,
         dismiss: (after: (() -> Unit)?) -> Unit
     ): MaterialCardView {
         val packageName = info.packageName
-        val mode = InstrumentationSettings.getModeForPackage(packageName)
+        val mode = InstrumentationSettings.getModeForPackage(packageName, userId)
         val appLabel = runCatching {
             info.applicationInfo?.loadLabel(BlackBoxCore.getPackageManager())?.toString()
         }.getOrNull().orEmpty().ifBlank { packageName.substringAfterLast('.') }
@@ -474,9 +494,14 @@ class FridaBoxActivity : AppCompatActivity() {
             setPadding(dp(8), dp(8), dp(8), dp(8))
         }
         heading.addView(icon, LinearLayout.LayoutParams(dp(58), dp(58)))
+        val headingSubtitle = if (userId == 0) {
+            "$packageName  ·  ${info.versionName ?: "—"}"
+        } else {
+            "$packageName  ·  instance ${userId + 1}"
+        }
         heading.addView(verticalText(
             appLabel,
-            "$packageName  ·  ${info.versionName ?: "—"}"
+            headingSubtitle
         ).apply { setPadding(dp(13), 0, dp(8), 0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         val modeBadge = badge(modeShortLabel(mode), modeColor(mode, true), modeColor(mode, false))
         heading.addView(modeBadge)
@@ -508,15 +533,15 @@ class FridaBoxActivity : AppCompatActivity() {
                 cleanId -> InstrumentationSettings.MODE_CLEAN
                 else -> InstrumentationSettings.MODE_COMPUTER
             }
-            InstrumentationSettings.setModeForPackage(packageName, selected)
+            InstrumentationSettings.setModeForPackage(packageName, selected, userId)
             modeBadge.text = modeShortLabel(selected)
             modeBadge.backgroundTintList = ColorStateList.valueOf(modeColor(selected, true))
             modeBadge.setTextColor(modeColor(selected, false))
-            renderModeInfo(modeInfo, packageName, selected)
+            renderModeInfo(modeInfo, packageName, userId, selected)
         }
         body.addView(group, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(48)))
         body.addView(modeInfo)
-        renderModeInfo(modeInfo, packageName, mode)
+        renderModeInfo(modeInfo, packageName, userId, mode)
 
         val actions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -524,11 +549,11 @@ class FridaBoxActivity : AppCompatActivity() {
             setPadding(0, dp(16), 0, 0)
         }
         actions.addView(primaryButton(getString(R.string.fb_launch)) {
-            dismiss { launchConfigured(packageName) }
+            dismiss { launchConfigured(packageName, userId) }
         }, LinearLayout.LayoutParams(0, dp(50), 1f))
         actions.addView(space(dp(10), 1))
         actions.addView(outlineButton(getString(R.string.fb_more)) { anchor ->
-            showAppMenu(anchor, info, appLabel)
+            showAppMenu(anchor, info, userId, appLabel)
         }, LinearLayout.LayoutParams(0, dp(50), 0.56f))
         body.addView(actions)
         return card
@@ -609,7 +634,7 @@ class FridaBoxActivity : AppCompatActivity() {
         }
     }
 
-    private fun renderModeInfo(container: LinearLayout, packageName: String, mode: String) {
+    private fun renderModeInfo(container: LinearLayout, packageName: String, userId: Int, mode: String) {
         container.removeAllViews()
         val title: String
         val description: String
@@ -637,8 +662,8 @@ class FridaBoxActivity : AppCompatActivity() {
             setPadding(0, dp(4), 0, 0)
         })
         if (mode == InstrumentationSettings.MODE_LOCAL_SCRIPT) {
-            val scriptName = metadata.getString("$packageName.scriptName", null)
-            val scriptHash = metadata.getString("$packageName.scriptSha", null)
+            val scriptName = metadata.getString(metaKey(packageName, userId, "scriptName"), null)
+            val scriptHash = metadata.getString(metaKey(packageName, userId, "scriptSha"), null)
             panel.addView(labelText(
                 scriptName ?: getString(R.string.fb_no_script),
                 if (scriptName == null) R.color.fb_warning else R.color.fb_success,
@@ -650,7 +675,7 @@ class FridaBoxActivity : AppCompatActivity() {
             }
             panel.addView(outlineButton(
                 if (scriptName == null) getString(R.string.fb_select_script) else getString(R.string.fb_replace_script)
-            ) { chooseAgent(packageName) }.apply {
+            ) { chooseAgent(packageName, userId) }.apply {
                 layoutParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(44)).apply {
                     topMargin = dp(10)
                 }
@@ -662,8 +687,8 @@ class FridaBoxActivity : AppCompatActivity() {
         ).apply { topMargin = dp(10) })
     }
 
-    private fun launchConfigured(packageName: String) {
-        val mode = InstrumentationSettings.getModeForPackage(packageName)
+    private fun launchConfigured(packageName: String, userId: Int) {
+        val mode = InstrumentationSettings.getModeForPackage(packageName, userId)
         if (mode != InstrumentationSettings.MODE_CLEAN
             && settings.getBoolean(InstrumentationSettings.KEY_ENABLED, true)
             && gadgetManager.selected() == null) {
@@ -672,28 +697,29 @@ class FridaBoxActivity : AppCompatActivity() {
             return
         }
         if (mode == InstrumentationSettings.MODE_LOCAL_SCRIPT) {
-            val path = InstrumentationSettings.getScriptPathForPackage(packageName)
+            val path = InstrumentationSettings.getScriptPathForPackage(packageName, userId)
             if (path.isNullOrBlank() || !File(path).isFile) {
-                chooseAgent(packageName)
+                chooseAgent(packageName, userId)
                 return
             }
-            launch(packageName, mode)
+            launch(packageName, userId, mode)
             return
         }
         if (mode == InstrumentationSettings.MODE_COMPUTER) {
             showGlassAlert(MaterialAlertDialogBuilder(this)
                 .setTitle(R.string.fb_computer_launch_title)
                 .setMessage(R.string.fb_computer_launch_body)
-                .setPositiveButton(R.string.fb_launch) { _, _ -> launch(packageName, mode) }
+                .setPositiveButton(R.string.fb_launch) { _, _ -> launch(packageName, userId, mode) }
                 .setNegativeButton(R.string.fb_cancel, null))
             return
         }
-        launch(packageName, mode)
+        launch(packageName, userId, mode)
     }
 
-    private fun launch(packageName: String, mode: String) {
+    private fun launch(packageName: String, userId: Int, mode: String) {
         settings.edit()
             .putString("runtime_package", packageName)
+            .putInt("runtime_user", userId)
             .putString("runtime_mode", mode)
             .putString("runtime_state", when (mode) {
                 InstrumentationSettings.MODE_LOCAL_SCRIPT -> "loading_local_script"
@@ -705,10 +731,10 @@ class FridaBoxActivity : AppCompatActivity() {
         setLoading(true)
         worker.execute {
             val result = runCatching {
-                InstrumentationSettings.setModeForPackage(packageName, mode)
-                BlackBoxCore.get().stopPackage(packageName, 0)
+                InstrumentationSettings.setModeForPackage(packageName, mode, userId)
+                BlackBoxCore.get().stopPackage(packageName, userId)
                 Thread.sleep(180)
-                BlackBoxCore.get().launchApk(packageName, 0)
+                BlackBoxCore.get().launchApk(packageName, userId)
             }
             runOnUiThread {
                 setLoading(false)
@@ -719,12 +745,13 @@ class FridaBoxActivity : AppCompatActivity() {
         }
     }
 
-    private fun chooseAgent(packageName: String) {
+    private fun chooseAgent(packageName: String, userId: Int) {
         showGlassAlert(MaterialAlertDialogBuilder(this)
             .setTitle(R.string.fb_choose_trusted_title)
             .setMessage(R.string.fb_choose_trusted_body)
             .setPositiveButton(R.string.fb_choose) { _, _ ->
                 pendingScriptPackage = packageName
+                pendingScriptUser = userId
                 scriptPicker.launch(arrayOf(
                     "application/javascript",
                     "text/javascript",
@@ -735,7 +762,7 @@ class FridaBoxActivity : AppCompatActivity() {
             .setNegativeButton(R.string.fb_cancel, null))
     }
 
-    private fun importAgent(packageName: String, uri: Uri) {
+    private fun importAgent(packageName: String, userId: Int, uri: Uri) {
         val name = displayName(uri, "agent.js")
         if (!name.lowercase(Locale.ROOT).endsWith(".js")) {
             notify("Select a JavaScript file ending in .js")
@@ -744,7 +771,7 @@ class FridaBoxActivity : AppCompatActivity() {
         setLoading(true)
         worker.execute {
             val result = runCatching {
-                val directory = agentDirectory(packageName).apply { mkdirs() }
+                val directory = agentDirectory(packageName, userId).apply { mkdirs() }
                 val temporary = File(directory, "agent.js.partial")
                 val destination = File(directory, "agent.js")
                 val digest = MessageDigest.getInstance("SHA-256")
@@ -771,14 +798,14 @@ class FridaBoxActivity : AppCompatActivity() {
                     error("Unable to secure the selected agent")
                 }
                 val sha = digest.digest().joinToString("") { "%02x".format(it) }
-                InstrumentationSettings.setScriptPathForPackage(packageName, destination.absolutePath)
-                InstrumentationSettings.setModeForPackage(packageName, InstrumentationSettings.MODE_LOCAL_SCRIPT)
+                InstrumentationSettings.setScriptPathForPackage(packageName, destination.absolutePath, userId)
+                InstrumentationSettings.setModeForPackage(packageName, InstrumentationSettings.MODE_LOCAL_SCRIPT, userId)
                 metadata.edit()
-                    .putString("$packageName.scriptName", name)
-                    .putString("$packageName.scriptSha", sha)
-                    .putLong("$packageName.scriptSize", total)
+                    .putString(metaKey(packageName, userId, "scriptName"), name)
+                    .putString(metaKey(packageName, userId, "scriptSha"), sha)
+                    .putLong(metaKey(packageName, userId, "scriptSize"), total)
                     .apply()
-                BlackBoxCore.get().stopPackage(packageName, 0)
+                BlackBoxCore.get().stopPackage(packageName, userId)
                 name
             }
             runOnUiThread {
@@ -787,14 +814,14 @@ class FridaBoxActivity : AppCompatActivity() {
                     notify("$it is ready for on-device launch")
                     showWorkspace()
                 }.onFailure { error ->
-                    File(agentDirectory(packageName), "agent.js.partial").delete()
+                    File(agentDirectory(packageName, userId), "agent.js.partial").delete()
                     notify("Agent import failed: ${error.message}")
                 }
             }
         }
     }
 
-    private fun showAppMenu(anchor: View, info: PackageInfo, appLabel: String) {
+    private fun showAppMenu(anchor: View, info: PackageInfo, userId: Int, appLabel: String) {
         val popup = PopupWindow(this).apply {
             width = dp(250)
             height = ViewGroup.LayoutParams.WRAP_CONTENT
@@ -812,16 +839,57 @@ class FridaBoxActivity : AppCompatActivity() {
             popup.dismiss()
             showAppDetails(info, appLabel)
         })
+        panel.addView(menuActionButton(getString(R.string.fb_add_instance), R.drawable.ic_fb_import) {
+            popup.dismiss()
+            addInstance(info.packageName)
+        })
         panel.addView(menuActionButton(getString(R.string.fb_clear_data), R.drawable.ic_fb_clear) {
             popup.dismiss()
-            clearApp(info.packageName)
+            clearApp(info.packageName, userId)
         })
-        panel.addView(menuActionButton(getString(R.string.fb_remove_guest), R.drawable.ic_fb_remove) {
+        val removeLabel = if (userId == 0) R.string.fb_remove_guest else R.string.fb_remove_instance
+        panel.addView(menuActionButton(getString(removeLabel), R.drawable.ic_fb_remove) {
             popup.dismiss()
-            removeApp(info.packageName, appLabel)
+            removeApp(info.packageName, userId, appLabel)
         })
         popup.contentView = panel
         popup.showAtLocation(anchor, Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL, 0, dp(28))
+    }
+
+    /** Clones the stored base APK into the next free virtual user slot. */
+    private fun addInstance(packageName: String) {
+        val userId = nextInstanceUserId()
+        if (userId < 0) {
+            notify(getString(R.string.fb_max_instances))
+            return
+        }
+        setLoading(true)
+        worker.execute {
+            val result = runCatching {
+                val base = BEnvironment.getBaseApkDir(packageName)
+                require(base.isFile) { "Base APK for $packageName is unavailable" }
+                val install = BlackBoxCore.get().installPackageAsUser(base, userId)
+                if (!install.success) error(install.msg ?: "Virtual installation failed")
+            }
+            runOnUiThread {
+                setLoading(false)
+                result.onSuccess {
+                    notify(getString(R.string.fb_add_instance_done))
+                    showWorkspace()
+                }.onFailure { notify("${getString(R.string.fb_add_instance_failed)}: ${it.message}") }
+            }
+        }
+    }
+
+    /** Smallest free global virtual-user slot; instance 0 is the default install. */
+    private fun nextInstanceUserId(): Int {
+        val existing = BlackBoxCore.get().users.map { it.id }.toSet()
+        var id = 1
+        while (existing.contains(id)) {
+            id++
+            if (id > MAX_INSTANCE_USER_ID) return -1
+        }
+        return id
     }
 
     private fun menuActionButton(label: String, iconResource: Int, action: () -> Unit): MaterialButton {
@@ -844,12 +912,12 @@ class FridaBoxActivity : AppCompatActivity() {
             .setPositiveButton(android.R.string.ok, null))
     }
 
-    private fun clearApp(packageName: String) {
+    private fun clearApp(packageName: String, userId: Int) {
         setLoading(true)
         worker.execute {
             val result = runCatching {
-                BlackBoxCore.get().stopPackage(packageName, 0)
-                BlackBoxCore.get().clearPackage(packageName, 0)
+                BlackBoxCore.get().stopPackage(packageName, userId)
+                BlackBoxCore.get().clearPackage(packageName, userId)
             }
             runOnUiThread {
                 setLoading(false)
@@ -859,23 +927,29 @@ class FridaBoxActivity : AppCompatActivity() {
         }
     }
 
-    private fun removeApp(packageName: String, appLabel: String) {
+    private fun removeApp(packageName: String, userId: Int, appLabel: String) {
+        val titleRes = if (userId == 0) R.string.fb_remove_title else R.string.fb_remove_instance_title
         showGlassAlert(MaterialAlertDialogBuilder(this)
-            .setTitle(getString(R.string.fb_remove_title))
+            .setTitle(getString(titleRes))
             .setMessage("$appLabel\n\n${getString(R.string.fb_remove_body)}")
             .setPositiveButton(R.string.fb_remove) { _, _ ->
                 setLoading(true)
                 worker.execute {
                     val result = runCatching {
-                        BlackBoxCore.get().stopPackage(packageName, 0)
-                        BlackBoxCore.get().uninstallPackageAsUser(packageName, 0)
-                        deleteAgentDirectory(packageName)
-                        InstrumentationSettings.clearPackage(packageName)
+                        BlackBoxCore.get().stopPackage(packageName, userId)
+                        BlackBoxCore.get().uninstallPackageAsUser(packageName, userId)
+                        deleteAgentDirectory(packageName, userId)
+                        InstrumentationSettings.clearPackage(packageName, userId)
                         metadata.edit()
-                            .remove("$packageName.scriptName")
-                            .remove("$packageName.scriptSha")
-                            .remove("$packageName.scriptSize")
+                            .remove(metaKey(packageName, userId, "scriptName"))
+                            .remove(metaKey(packageName, userId, "scriptSha"))
+                            .remove(metaKey(packageName, userId, "scriptSize"))
                             .apply()
+                        // Reclaim a cloned user slot once it holds no more guests.
+                        if (userId != 0
+                            && BlackBoxCore.get().getInstalledApplications(0, userId).isEmpty()) {
+                            runCatching { BlackBoxCore.get().deleteUser(userId) }
+                        }
                     }
                     runOnUiThread {
                         setLoading(false)
@@ -1978,6 +2052,21 @@ class FridaBoxActivity : AppCompatActivity() {
         }
     }
 
+    /** Small launcher-cell badge marking a cloned instance (userId + 1). */
+    private fun instanceBadge(userId: Int): TextView {
+        return TextView(this).apply {
+            text = (userId + 1).toString()
+            textSize = 10f
+            setTypeface(typeface, Typeface.BOLD)
+            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            background = rounded(color(R.color.fb_success), dp(99))
+            minWidth = dp(18)
+            minHeight = dp(18)
+            setPadding(dp(5), dp(1), dp(5), dp(1))
+        }
+    }
+
     private fun modeButton(id: Int, label: String): MaterialButton {
         return MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
             this.id = id
@@ -2189,16 +2278,22 @@ class FridaBoxActivity : AppCompatActivity() {
         return uri.lastPathSegment ?: fallback
     }
 
-    private fun agentDirectory(packageName: String): File =
-        File(File(filesDir, "fridabox-agents"), safePackageName(packageName))
+    private fun agentDirectory(packageName: String, userId: Int): File {
+        val base = File(File(filesDir, "fridabox-agents"), safePackageName(packageName))
+        return if (userId == 0) base else File(base, "u$userId")
+    }
 
-    private fun deleteAgentDirectory(packageName: String) {
+    private fun deleteAgentDirectory(packageName: String, userId: Int) {
         val root = File(filesDir, "fridabox-agents").canonicalFile
-        val directory = agentDirectory(packageName).canonicalFile
+        val directory = agentDirectory(packageName, userId).canonicalFile
         if (!directory.path.startsWith(root.path + File.separator)) return
         directory.listFiles()?.forEach { child -> if (child.isFile) child.delete() }
         directory.delete()
     }
+
+    /** Per-instance metadata key; instance 0 keeps the legacy package-only key. */
+    private fun metaKey(packageName: String, userId: Int, suffix: String): String =
+        if (userId == 0) "$packageName.$suffix" else "$packageName:$userId.$suffix"
 
     private fun safePackageName(packageName: String): String =
         packageName.replace(Regex("[^A-Za-z0-9._-]"), "_")
@@ -2256,5 +2351,7 @@ class FridaBoxActivity : AppCompatActivity() {
 
     companion object {
         private const val MAX_AGENT_SIZE = 16L * 1024L * 1024L
+        // ponytail: 50 = Bcore stub-process ceiling; installs are cheap, concurrent runs are the real limit
+        private const val MAX_INSTANCE_USER_ID = 50
     }
 }

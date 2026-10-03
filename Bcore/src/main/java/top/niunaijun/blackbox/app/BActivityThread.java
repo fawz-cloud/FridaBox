@@ -408,7 +408,7 @@ public class BActivityThread extends IBActivityThread.Stub {
         IOCore.get().enableRedirect(packageContext);
 
         ClassLoader guestClassLoader = BRLoadedApk.get(loadedApk).getClassLoader();
-        boolean instrumentationEnabled = InstrumentationSettings.isEnabledForPackage(packageName);
+        boolean instrumentationEnabled = InstrumentationSettings.isEnabledForPackage(packageName, getUserId());
         GuestRuntimeRegistry.initialize(packageName, processName, getUserId(), getAppPid(),
                 applicationInfo, guestClassLoader, instrumentationEnabled);
         InstrumentationStatusStore.recordBinding();
