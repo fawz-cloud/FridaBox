@@ -22,6 +22,7 @@ import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import org.json.JSONObject
+import top.niunaijun.blackbox.instrumentation.GuestRuntimeRegistry
 import top.niunaijun.blackbox.instrumentation.InstrumentationSettings
 import java.io.File
 import java.text.SimpleDateFormat
@@ -44,8 +45,9 @@ object FridaBoxGuestLogOverlay {
     fun attach(activity: Activity, packageName: String) {
         val decor = activity.window?.decorView as? ViewGroup ?: return
         val existing = decor.findViewWithTag<View>(OVERLAY_TAG)
+        val userId = GuestRuntimeRegistry.getGuestUserId().coerceAtLeast(0)
         val localMode = InstrumentationSettings.MODE_LOCAL_SCRIPT ==
-            InstrumentationSettings.getModeForPackage(packageName)
+            InstrumentationSettings.getModeForPackage(packageName, userId)
         val logFile = logFileFor(packageName)
         if (!localMode || logFile == null) {
             if (existing != null) decor.removeView(existing)
@@ -235,7 +237,8 @@ object FridaBoxGuestLogOverlay {
     }
 
     private fun logFileFor(packageName: String): File? {
-        val scriptPath = InstrumentationSettings.getScriptPathForPackage(packageName) ?: return null
+        val userId = GuestRuntimeRegistry.getGuestUserId().coerceAtLeast(0)
+        val scriptPath = InstrumentationSettings.getScriptPathForPackage(packageName, userId) ?: return null
         val directory = File(scriptPath).parentFile ?: return null
         return File(directory, LOG_NAME)
     }

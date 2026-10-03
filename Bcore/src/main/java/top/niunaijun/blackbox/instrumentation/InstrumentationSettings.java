@@ -42,50 +42,80 @@ public final class InstrumentationSettings {
     }
 
     public static boolean isEnabledForPackage(String packageName) {
+        return isEnabledForPackage(packageName, 0);
+    }
+
+    public static boolean isEnabledForPackage(String packageName, int userId) {
         return preferences().getBoolean(KEY_ENABLED, true)
-                && !MODE_CLEAN.equals(getModeForPackage(packageName));
+                && !MODE_CLEAN.equals(getModeForPackage(packageName, userId));
     }
 
     public static void setEnabledForPackage(String packageName, boolean enabled) {
-        setModeForPackage(packageName, enabled ? MODE_COMPUTER : MODE_CLEAN);
+        setModeForPackage(packageName, enabled ? MODE_COMPUTER : MODE_CLEAN, 0);
     }
 
     public static String getModeForPackage(String packageName) {
+        return getModeForPackage(packageName, 0);
+    }
+
+    public static String getModeForPackage(String packageName, int userId) {
         SharedPreferences preferences = preferences();
-        String mode = preferences.getString(PACKAGE_MODE_PREFIX + packageName, null);
+        String mode = preferences.getString(instanceKey(PACKAGE_MODE_PREFIX, packageName, userId), null);
         if (isValidMode(mode)) return mode;
-        return preferences.getBoolean(PACKAGE_PREFIX + packageName, true)
+        return preferences.getBoolean(instanceKey(PACKAGE_PREFIX, packageName, userId), true)
                 ? MODE_COMPUTER : MODE_CLEAN;
     }
 
     public static void setModeForPackage(String packageName, String mode) {
+        setModeForPackage(packageName, mode, 0);
+    }
+
+    public static void setModeForPackage(String packageName, String mode, int userId) {
         String safeMode = isValidMode(mode) ? mode : MODE_COMPUTER;
         preferences().edit()
-                .putString(PACKAGE_MODE_PREFIX + packageName, safeMode)
-                .putBoolean(PACKAGE_PREFIX + packageName, !MODE_CLEAN.equals(safeMode))
+                .putString(instanceKey(PACKAGE_MODE_PREFIX, packageName, userId), safeMode)
+                .putBoolean(instanceKey(PACKAGE_PREFIX, packageName, userId), !MODE_CLEAN.equals(safeMode))
                 .commit();
     }
 
     public static String getScriptPathForPackage(String packageName) {
-        return preferences().getString(PACKAGE_SCRIPT_PREFIX + packageName, null);
+        return getScriptPathForPackage(packageName, 0);
+    }
+
+    public static String getScriptPathForPackage(String packageName, int userId) {
+        return preferences().getString(instanceKey(PACKAGE_SCRIPT_PREFIX, packageName, userId), null);
     }
 
     public static void setScriptPathForPackage(String packageName, String path) {
+        setScriptPathForPackage(packageName, path, 0);
+    }
+
+    public static void setScriptPathForPackage(String packageName, String path, int userId) {
         SharedPreferences.Editor editor = preferences().edit();
+        String key = instanceKey(PACKAGE_SCRIPT_PREFIX, packageName, userId);
         if (path == null || path.trim().isEmpty()) {
-            editor.remove(PACKAGE_SCRIPT_PREFIX + packageName);
+            editor.remove(key);
         } else {
-            editor.putString(PACKAGE_SCRIPT_PREFIX + packageName, path);
+            editor.putString(key, path);
         }
         editor.commit();
     }
 
     public static void clearPackage(String packageName) {
+        clearPackage(packageName, 0);
+    }
+
+    public static void clearPackage(String packageName, int userId) {
         preferences().edit()
-                .remove(PACKAGE_PREFIX + packageName)
-                .remove(PACKAGE_MODE_PREFIX + packageName)
-                .remove(PACKAGE_SCRIPT_PREFIX + packageName)
+                .remove(instanceKey(PACKAGE_PREFIX, packageName, userId))
+                .remove(instanceKey(PACKAGE_MODE_PREFIX, packageName, userId))
+                .remove(instanceKey(PACKAGE_SCRIPT_PREFIX, packageName, userId))
                 .commit();
+    }
+
+    /** Instance 0 keeps the legacy package-only key so existing settings survive. */
+    static String instanceKey(String prefix, String packageName, int userId) {
+        return userId == 0 ? prefix + packageName : prefix + packageName + ":" + userId;
     }
 
     private static boolean isValidMode(String mode) {

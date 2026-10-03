@@ -48,6 +48,12 @@
     <string name="fb_remove_title">Remove this guest?</string>
     <string name="fb_remove_body">The virtual app, its virtual data, and its saved on-device agent will be removed from FridaBox. The Android PackageManager installation is not changed.</string>
     <string name="fb_remove">Remove</string>
+    <string name="fb_add_instance">Add instance</string>
+    <string name="fb_remove_instance">Remove this instance</string>
+    <string name="fb_remove_instance_title">Remove this instance?</string>
+    <string name="fb_add_instance_done">New instance added</string>
+    <string name="fb_add_instance_failed">Unable to add instance</string>
+    <string name="fb_max_instances">Instance limit reached</string>
     <string name="fb_details">App details</string>
     <string name="fb_gadgets_title">Gadget manager</string>
     <string name="fb_active_gadget">Active Gadget</string>
