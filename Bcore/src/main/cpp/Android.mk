@@ -36,6 +36,7 @@ Utils/elf_util.cpp \
 Hook/DexFileHook.cpp \
 Hook/FileSystemHook.cpp \
 Utils/VirtualSpoof.cpp \
+Utils/ProcMaps.cpp \
 Utils/HexDump.cpp \
 Utils/AntiDetection.cpp \
 Hook/VMClassLoaderHook.cpp \
