@@ -23,7 +23,8 @@ enum class GadgetSource(
     val title: String,
     val repository: String
 ) {
-    OFFICIAL("official", "Official Frida", "frida/frida");
+    OFFICIAL("official", "Official Frida", "frida/frida"),
+    BUNDLED("bundled", "Built-in", "");
 
     fun expectedAsset(version: String, architecture: String): String =
         "frida-gadget-$version-android-$architecture.so.xz"
@@ -81,8 +82,10 @@ class GadgetManager(private val context: Context) {
     private val cacheRoot = File(context.cacheDir, "gadget-catalogs")
 
     init {
-        if (InstrumentationSettings.getSelectedGadgetSource() != null
-            && InstrumentationSettings.getSelectedGadgetSource() != GadgetSource.OFFICIAL.id) {
+        val source = InstrumentationSettings.getSelectedGadgetSource()
+        if (source != null
+            && source != GadgetSource.OFFICIAL.id
+            && source != GadgetSource.BUNDLED.id) {
             InstrumentationSettings.clearSelectedGadget()
         }
     }
@@ -195,6 +198,65 @@ class GadgetManager(private val context: Context) {
         }
     }
 
+    /**
+     * Installs the APK-bundled gadget (no network) and selects it when nothing is
+     * selected yet. Returns the installed gadget, or null when none is bundled (the
+     * runtime download flow is then used instead). Run off the main thread.
+     */
+    fun ensureBundledGadget(): InstalledGadget? {
+        selected()?.let { return it } // user already chose a gadget — never override it
+        val abi = detectedAbi() ?: return null
+        val source = bundledGadgetFile() ?: return null
+        return runCatching {
+            val directory = installDirectory(GadgetSource.BUNDLED, BUNDLED_VERSION, abi).apply {
+                if (!isDirectory && !mkdirs()) throw IOException("Unable to create Gadget storage")
+            }
+            val destination = File(directory, PAYLOAD_NAME)
+            val metadata = File(directory, METADATA_NAME)
+            copyBundled(source, destination)
+            if (!destination.setReadable(true, true) || !destination.setWritable(false, false)) {
+                throw IOException("Unable to secure bundled Gadget")
+            }
+            validateElf(destination, abi)
+            val record = InstalledGadget(
+                GadgetSource.BUNDLED, BUNDLED_VERSION, abi, destination, sha256(destination), destination.length()
+            )
+            writeMetadata(metadata, record, source.name)
+            select(record)
+            record
+        }.getOrNull()
+    }
+
+    private fun bundledGadgetFile(): File? {
+        val dir = context.applicationInfo.nativeLibraryDir ?: return null
+        val file = File(dir, BUNDLED_LIB)
+        return if (file.isFile) file else null
+    }
+
+    private fun copyBundled(source: File, destination: File) {
+        val temporary = File(destination.parentFile, "$PAYLOAD_NAME.partial")
+        FileInputStream(source).use { input ->
+            FileOutputStream(temporary).use { output ->
+                input.copyTo(output, 128 * 1024)
+                output.fd.sync()
+            }
+        }
+        replace(temporary, destination)
+    }
+
+    private fun sha256(file: File): String {
+        val digest = MessageDigest.getInstance("SHA-256")
+        FileInputStream(file).use { input ->
+            val buffer = ByteArray(128 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                digest.update(buffer, 0, count)
+            }
+        }
+        return digest.digest().joinToString("") { "%02x".format(it) }
+    }
+
     fun findInstalled(release: GadgetRelease): InstalledGadget? {
         val expected = runCatching {
             File(installDirectory(release.source, release.version, release.abi), METADATA_NAME)
@@ -302,6 +364,8 @@ class GadgetManager(private val context: Context) {
 
     companion object {
         private const val DOWNLOAD_ROOT = "fridabox-gadgets"
+        private const val BUNDLED_VERSION = "bundled"
+        private const val BUNDLED_LIB = "libruntime.so"
         internal const val CATALOG_PAGE_SIZE = 10
         private const val PAYLOAD_NAME = "payload.so"
         private const val METADATA_NAME = "metadata.json"

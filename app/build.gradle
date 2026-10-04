@@ -69,6 +69,8 @@ android {
     }
     sourceSets {
         debug.assets.srcDir("$buildDir/generated/demoGuestAssets")
+        // Opt-in bundled gadget (fetched by fetchBundledGadget); empty by default.
+        main.jniLibs.srcDir("$buildDir/generated/bundledGadget")
     }
     kotlinOptions {
         jvmTarget = '21'
@@ -103,9 +105,50 @@ tasks.matching { it.name == "mergeDebugAssets" }.configureEach { dependsOn("copy
 tasks.matching { it.name.toLowerCase().contains("debug") && it.name.toLowerCase().contains("lint") }
         .configureEach { dependsOn("copyDemoGuestDebug") }
 
+// Bundle a prebuilt gadget into jniLibs so the app works without a runtime
+// download. Opt-in: pass -PbundledGadgetUrlTemplate="https://.../NAME-gadget-<ver>-android-{releaseAbi}.so.gz"
+// (or a .so). {releaseAbi} is replaced per ABI. Absent -> no bundle (runtime download is used).
+tasks.register("fetchBundledGadget") {
+    def template = project.findProperty("bundledGadgetUrlTemplate")?.toString()
+    def outRoot = file("$buildDir/generated/bundledGadget")
+    onlyIf { template != null && !template.isBlank() }
+    doLast {
+        def abis = [["arm64-v8a", "arm64"], ["armeabi-v7a", "arm"], ["x86_64", "x86_64"], ["x86", "x86"]]
+        abis.each { pair ->
+            def androidAbi = pair[0]
+            def releaseAbi = pair[1]
+            def url = template.replace("{releaseAbi}", releaseAbi).replace("{androidAbi}", androidAbi)
+            def dir = new File(outRoot, androidAbi)
+            dir.mkdirs()
+            def out = new File(dir, "libruntime.so")
+            if (out.isFile() && out.length() > 0) {
+                logger.lifecycle("bundled gadget present: ${androidAbi}")
+                return
+            }
+            try {
+                def conn = new URL(url).openConnection()
+                conn.setConnectTimeout(15000)
+                conn.setReadTimeout(60000)
+                conn.inputStream.withStream { raw ->
+                    def input = url.endsWith(".gz") ? new java.util.zip.GZIPInputStream(raw) : raw
+                    out.withOutputStream { os -> os << input }
+                }
+                logger.lifecycle("fetched bundled gadget ${androidAbi} <- ${url}")
+            } catch (Exception e) {
+                logger.warn("fetchBundledGadget skip ${androidAbi}: ${e.message}")
+            }
+        }
+    }
+}
+tasks.matching { it.name == "preBuild" }.configureEach { dependsOn("fetchBundledGadget") }
+
 tasks.register("verifyDebugApkHasNoGadget") {
     dependsOn("assembleDebug")
     doLast {
+        if (project.findProperty("bundledGadgetUrlTemplate")?.toString()?.trim()) {
+            logger.lifecycle("bundled gadget opted in; skipping no-gadget check")
+            return
+        }
         def apks = fileTree("$buildDir/outputs/apk/debug").matching { include("*.apk") }.files
         if (apks.isEmpty()) {
             throw new GradleException("No debug APKs were produced")
