@@ -11,6 +11,7 @@
     <string name="fb_installed_apps">Installed apps</string>
     <string name="fb_import_app">Import</string>
     <string name="fb_app_imported">Imported</string>
+    <string name="fb_reimport_app">Re-import</string>
     <string name="fb_loading_apps">Loading apps…</string>
     <string name="fb_no_importable_apps">No importable apps found</string>
     <string name="fb_mode_local">On-device</string>
