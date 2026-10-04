@@ -5,12 +5,61 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 
 public final class ApkInspector {
     private ApkInspector() {
+    }
+
+    /** A parsed member of a split set: a base APK (empty splitName) or a config/feature split. */
+    public static final class SplitMember {
+        public final String packageName;
+        public final long versionCode;
+        public final String splitName;
+
+        public SplitMember(String packageName, long versionCode, String splitName) {
+            this.packageName = packageName;
+            this.versionCode = versionCode;
+            this.splitName = splitName;
+        }
+
+        boolean isBase() {
+            return splitName == null || splitName.isEmpty();
+        }
+    }
+
+    /**
+     * Asserts a split set is installable as one app: exactly one base member and an identical
+     * packageName and versionCode across every member. Pure and device-free so it is unit-testable.
+     *
+     * @throws IllegalArgumentException on any violation, with a message naming the problem.
+     */
+    public static void validateSplitSet(List<SplitMember> members) {
+        if (members == null || members.isEmpty()) {
+            throw new IllegalArgumentException("No APK members were provided");
+        }
+        SplitMember first = members.get(0);
+        if (first.packageName == null) {
+            throw new IllegalArgumentException("Member has no packageName");
+        }
+        int baseCount = 0;
+        for (SplitMember member : members) {
+            if (member.isBase()) baseCount++;
+            if (!first.packageName.equals(member.packageName)) {
+                throw new IllegalArgumentException("Mismatched packageName: " + first.packageName
+                        + " vs " + member.packageName);
+            }
+            if (first.versionCode != member.versionCode) {
+                throw new IllegalArgumentException("Mismatched versionCode for " + first.packageName
+                        + ": " + first.versionCode + " vs " + member.versionCode);
+            }
+        }
+        if (baseCount != 1) {
+            throw new IllegalArgumentException("Expected exactly one base APK, found " + baseCount);
+        }
     }
 
     public static Result inspect(File apk) throws IOException {
