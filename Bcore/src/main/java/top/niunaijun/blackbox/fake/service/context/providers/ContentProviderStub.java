@@ -53,8 +53,12 @@ public class ContentProviderStub extends ClassInvocationStub implements BContent
         
         
         if ("call".equals(methodName)) {
-            
+
             AttributionSourceUtils.fixAttributionSourceInArgs(args);
+            Bundle spoofed = EnvironmentSpoof.spoofSettingsCall(args);
+            if (spoofed != null) {
+                return spoofed;
+            }
         } else {
             
             if (args != null && args.length > 0) {
