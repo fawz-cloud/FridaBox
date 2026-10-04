@@ -119,6 +119,10 @@ class FridaBoxActivity : AppCompatActivity() {
             .remove(InstrumentationSettings.KEY_ADVANCED_LOGS)
             .apply()
 
+        // Activate the APK-bundled gadget on first run so no download is required;
+        // no-ops when none is bundled or the user already picked a gadget.
+        worker.execute { runCatching { gadgetManager.ensureBundledGadget() } }
+
         binding.importFabIcon.setOnClickListener { showImportActions() }
         binding.bottomNavigation.setOnItemSelectedListener { item ->
             if (changingNavigation) return@setOnItemSelectedListener true
