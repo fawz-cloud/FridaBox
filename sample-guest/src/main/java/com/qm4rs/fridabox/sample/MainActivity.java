@@ -12,6 +12,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        SurfaceProbe.capture(this);
         TextView output = new TextView(this);
         output.setTextSize(22f);
         output.setText("Press the button to call Target.add(2, 3)");
