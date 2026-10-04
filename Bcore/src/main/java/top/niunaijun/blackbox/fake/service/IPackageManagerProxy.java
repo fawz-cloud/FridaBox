@@ -4,6 +4,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.InstallSourceInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.ProviderInfo;
@@ -12,6 +13,7 @@ import android.content.pm.ServiceInfo;
 import android.os.Build;
 import android.util.Log;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.lang.reflect.Parameter;
 import java.util.ArrayList;
@@ -29,6 +31,7 @@ import top.niunaijun.blackbox.fake.FakeCore;
 import top.niunaijun.blackbox.fake.hook.BinderInvocationStub;
 import top.niunaijun.blackbox.fake.hook.MethodHook;
 import top.niunaijun.blackbox.fake.hook.ProxyMethod;
+import top.niunaijun.blackbox.fake.hook.ProxyMethods;
 import top.niunaijun.blackbox.fake.service.base.PkgMethodProxy;
 import top.niunaijun.blackbox.fake.service.base.ValueMethodProxy;
 import top.niunaijun.blackbox.utils.MethodParameterUtils;
@@ -364,12 +367,68 @@ public class IPackageManagerProxy extends BinderInvocationStub {
         }
     }
 
+
+    public static final String INSTALLER_PLAY_STORE = "com.android.vending";
+
+    private static final int INSTALL_SOURCE_INSTALLER_INDEX = 3;
+
+
+    private static boolean shouldSpoofInstaller(String packageName) {
+        return packageName != null
+                && !packageName.equals(BlackBoxCore.getHostPkg())
+                && !AppSystemEnv.isOpenPackage(packageName);
+    }
+
+
+    static Object[] buildInstallSourceArgs(Class<?>[] paramTypes, int installerIndex, String installer) {
+        Object[] args = new Object[paramTypes.length];
+        for (int i = 0; i < paramTypes.length; i++) {
+            if (paramTypes[i] == int.class) {
+                args[i] = 0;
+            }
+        }
+        if (installerIndex >= 0 && installerIndex < args.length) {
+            args[installerIndex] = installer;
+        }
+        return args;
+    }
+
     @ProxyMethod("getInstallerPackageName")
     public static class GetInstallerPackageName extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            
-            return "com.android.vending";
+            String packageName = args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+            if (shouldSpoofInstaller(packageName)) {
+                return INSTALLER_PLAY_STORE;
+            }
+            return method.invoke(who, args);
+        }
+    }
+
+
+    @ProxyMethods({"getInstallSourceInfo", "getInstallSourceInfoAsUser"})
+    public static class GetInstallSourceInfo extends MethodHook {
+        @Override
+        protected boolean isEnable() {
+            return super.isEnable() && BuildCompat.isR();
+        }
+
+        @Override
+        protected Object hook(Object who, Method method, Object[] args) throws Throwable {
+            String packageName = args.length > 0 && args[0] instanceof String ? (String) args[0] : null;
+            if (shouldSpoofInstaller(packageName)) {
+                try {
+
+                    Constructor<?> ctor = InstallSourceInfo.class.getConstructors()[0];
+                    Object[] ctorArgs = buildInstallSourceArgs(
+                            ctor.getParameterTypes(), INSTALL_SOURCE_INSTALLER_INDEX, INSTALLER_PLAY_STORE);
+                    ctor.setAccessible(true);
+                    return ctor.newInstance(ctorArgs);
+                } catch (Throwable t) {
+                    Slog.w(TAG, "getInstallSourceInfo spoof failed: " + t.getMessage());
+                }
+            }
+            return method.invoke(who, args);
         }
     }
 
