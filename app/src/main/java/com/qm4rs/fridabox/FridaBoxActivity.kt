@@ -1331,13 +1331,11 @@ class FridaBoxActivity : AppCompatActivity() {
                 })
             }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
             addView(outlineButton(getString(
-                if (imported) R.string.fb_app_imported else R.string.fb_import_app
+                if (imported) R.string.fb_reimport_app else R.string.fb_import_app
             )) {
                 dialog.dismiss()
                 importInstalledApp(info.packageName)
-            }.apply {
-                isEnabled = !imported
-            }, LinearLayout.LayoutParams(dp(92), dp(40)))
+            }, LinearLayout.LayoutParams(dp(100), dp(40)))
         }
     }
 
