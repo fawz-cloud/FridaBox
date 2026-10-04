@@ -708,6 +708,9 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             }
             synchronized (mPackages) {
                 bPackageSettings.setInstalled(true, userId);
+                // ponytail: single timestamp drives both firstInstallTime/lastUpdateTime; reinstall
+                // resets it. Separate first-install would need Settings.getPackageLPw to carry it over.
+                bPackageSettings.installTime = System.currentTimeMillis();
                 bPackageSettings.save();
             }
             mComponentResolver.removeAllComponents(bPackageSettings.pkg);

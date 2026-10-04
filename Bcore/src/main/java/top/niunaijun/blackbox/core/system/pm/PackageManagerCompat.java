@@ -45,7 +45,7 @@ public class PackageManagerCompat {
         if (p != null) {
             PackageInfo packageInfo = null;
             try {
-                packageInfo = generatePackageInfo(p, flags, 0, 0, state, userId);
+                packageInfo = generatePackageInfo(p, flags, ps.installTime, ps.installTime, state, userId);
             } catch (Throwable ignored) {
             }
             return packageInfo;
