@@ -18,7 +18,7 @@ Explicitly unsupported or excluded:
 
 Normal guest `android:process=":remote"` components routed through BlackBox's
 `BActivityThread` receive a best-effort independent Gadget load. Each process
-starts at 27042 and relies on `pick-next` for conflicts.
+starts at 51073 and relies on `pick-next` for conflicts.
 
 The static config always uses `on_load=wait`; changing the displayed base port
 does not rewrite the packaged Gadget configuration in this MVP. The controller's

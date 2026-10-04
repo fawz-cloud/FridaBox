@@ -95,7 +95,7 @@ public final class InstrumentationSettings {
     }
 
     public static int getBasePort() {
-        return clamp(preferences().getInt(KEY_BASE_PORT, 27042), 1024, 65535, 27042);
+        return clamp(preferences().getInt(KEY_BASE_PORT, 51073), 1024, 65535, 51073);
     }
 
     public static int getPortScanCount() {
