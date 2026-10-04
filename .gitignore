@@ -29,3 +29,6 @@ node_modules/
 .npm-cache/
 /release-secrets/
 /.release-work/
+
+# Claude Code session artifacts
+.claude/
