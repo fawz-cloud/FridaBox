@@ -21,6 +21,7 @@ public class BPackageSettings implements Parcelable {
     public BPackage pkg;
     public int appId;
     public InstallOption installOption;
+    public long installTime;
     public Map<Integer, BPackageUserState> userState = new HashMap<>();
     static final BPackageUserState DEFAULT_USER_STATE = new BPackageUserState();
 
@@ -124,6 +125,13 @@ public class BPackageSettings implements Parcelable {
             dest.writeValue(entry.getKey());
             dest.writeParcelable(entry.getValue(), flags);
         }
+        dest.writeLong(this.installTime);
+    }
+
+    // ponytail: sentinel = "now" when the conf file has no usable mtime; a shared constant fake
+    // timestamp across clones would itself be a fingerprint, so we never return epoch-0.
+    static long resolveInstallTime(long confMtime, long sentinel) {
+        return confMtime > 0 ? confMtime : sentinel;
     }
 
     protected BPackageSettings(Parcel in) {
@@ -136,6 +144,14 @@ public class BPackageSettings implements Parcelable {
             Integer key = (Integer) in.readValue(Integer.class.getClassLoader());
             BPackageUserState value = in.readParcelable(BPackageUserState.class.getClassLoader());
             this.userState.put(key, value);
+        }
+        // Back-compat: records written before installTime existed have no bytes left here.
+        if (in.dataAvail() > 0) {
+            this.installTime = in.readLong();
+        } else {
+            long confMtime = this.pkg != null
+                    ? BEnvironment.getPackageConf(this.pkg.packageName).lastModified() : 0;
+            this.installTime = resolveInstallTime(confMtime, System.currentTimeMillis());
         }
     }
 
