@@ -27,7 +27,7 @@ class FridaBoxApplication : Application() {
     }
 
     companion object {
-        private const val TAG = "FridaBox.Application"
+        private const val TAG = "Palka.Application"
 
         @Volatile
         lateinit var appContext: Context

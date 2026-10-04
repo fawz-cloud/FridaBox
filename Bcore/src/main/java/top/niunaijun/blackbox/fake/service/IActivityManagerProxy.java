@@ -768,7 +768,7 @@ public class IActivityManagerProxy extends ClassInvocationStub {
     public static class getCurrentUser extends MethodHook {
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            Object fridaBox = BRUserInfo.get()._new(BActivityThread.getUserId(), "FridaBox", BRUserInfo.get().FLAG_PRIMARY());
+            Object fridaBox = BRUserInfo.get()._new(BActivityThread.getUserId(), "Palka", BRUserInfo.get().FLAG_PRIMARY());
             return fridaBox;
         }
     }

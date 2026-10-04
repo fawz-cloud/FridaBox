@@ -686,7 +686,7 @@ public class BPackageManagerService extends IBPackageManagerService.Stub impleme
             if (!support) {
                 String msg = packageArchiveInfo.applicationInfo.loadLabel(BlackBoxCore.getPackageManager()) + "[" + packageArchiveInfo.packageName + "]";
                 return result.installError(packageArchiveInfo.packageName,
-                        msg + "\nThe application has no native libraries for the FridaBox process ABI");
+                        msg + "\nThe application has no native libraries for the Palka process ABI");
             }
             PackageParser.Package aPackage = parserApk(apkFile.getAbsolutePath());
             if (aPackage == null) {

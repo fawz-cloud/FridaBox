@@ -289,7 +289,7 @@ class GadgetManager(private val context: Context) {
             readTimeout = 45_000
             instanceFollowRedirects = true
             setRequestProperty("Accept", accept)
-            setRequestProperty("User-Agent", "FridaBox/${BuildConfig.VERSION_NAME}")
+            setRequestProperty("User-Agent", "Palka/${BuildConfig.VERSION_NAME}")
             setRequestProperty("X-GitHub-Api-Version", "2022-11-28")
         }
     }

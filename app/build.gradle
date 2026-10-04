@@ -19,7 +19,7 @@ android {
     compileSdk rootProject.ext.compileSdkVersion
     ndkVersion = "29.0.14206865"
     defaultConfig {
-        applicationId "com.qm4rs.fridabox"
+        applicationId "com.palka.app"
         minSdk rootProject.ext.minSdk
         targetSdk rootProject.ext.targetSdkVersion
         versionCode rootProject.ext.versionCode
@@ -84,7 +84,7 @@ android {
     }
     applicationVariants.configureEach { variant ->
         variant.outputs.configureEach { output ->
-            output.outputFileName = "FridaBox_${variant.versionName}_${output.baseName}.apk"
+            output.outputFileName = "Palka_${variant.versionName}_${output.baseName}.apk"
         }
     }
     lint {

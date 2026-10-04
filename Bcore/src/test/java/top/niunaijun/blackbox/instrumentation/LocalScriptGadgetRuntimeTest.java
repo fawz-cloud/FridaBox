@@ -13,9 +13,9 @@ public class LocalScriptGadgetRuntimeTest {
     @Test
     public void configUsesAutonomousScriptInteraction() {
         String config = LocalScriptGadgetRuntime.buildConfig(
-                "sample.\"guest", "/private/agents/fridabox-runtime.js");
+                "sample.\"guest", "/private/agents/guest-runtime.js");
         assertTrue(config.contains("\"type\": \"script\""));
-        assertTrue(config.contains("\"path\": \"/private/agents/fridabox-runtime.js\""));
+        assertTrue(config.contains("\"path\": \"/private/agents/guest-runtime.js\""));
         assertTrue(config.contains("\"on_change\": \"ignore\""));
         assertTrue(config.contains("\"runtime\": \"v8\""));
         assertTrue(config.contains("sample.\\\"guest"));
@@ -27,7 +27,7 @@ public class LocalScriptGadgetRuntimeTest {
         assertTrue(bridge.contains("console.log = function"));
         assertTrue(bridge.contains("console.error = function"));
         assertTrue(bridge.contains("Object.getOwnPropertyDescriptor(globalThis, 'send')"));
-        assertTrue(bridge.contains("__fridaboxSend"));
+        assertTrue(bridge.contains("__palkaSend"));
         assertTrue(bridge.contains("runtime.jsonl"));
         assertTrue(bridge.contains("new File(logPath, 'a')"));
     }
@@ -40,7 +40,7 @@ public class LocalScriptGadgetRuntimeTest {
                 source.getBytes(StandardCharsets.UTF_8), bridge), StandardCharsets.UTF_8);
 
         assertTrue(result.contains("✄\n" + bridge + "(function (send) {\nvar hook = true;"));
-        assertTrue(result.contains("})(globalThis.__fridaboxSend);"));
+        assertTrue(result.contains("})(globalThis.__palkaSend);"));
     }
 
     @Test
@@ -52,7 +52,7 @@ public class LocalScriptGadgetRuntimeTest {
 
         assertTrue(result.startsWith(bridge));
         assertTrue(result.contains("(function (send) {\n" + source));
-        assertTrue(result.endsWith("})(globalThis.__fridaboxSend);\n"));
+        assertTrue(result.endsWith("})(globalThis.__palkaSend);\n"));
     }
 
     @Test
