@@ -19,7 +19,7 @@ public final class FridaGadgetLoader {
     public static boolean loadAtProcessBind() {
         String packageName = GuestRuntimeRegistry.getGuestPackageName();
         String mode = InstrumentationSettings.getModeForPackage(packageName);
-        if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode)) {
+        if (shouldDeferAtBind(mode)) {
             Log.i(TAG, "Deferring on-device agent until the guest application is ready");
             return false;
         }
@@ -27,14 +27,15 @@ public final class FridaGadgetLoader {
     }
 
     public static boolean loadIfEnabled() {
-        if (!GuestRuntimeRegistry.isInstrumentationEnabled()) {
+        String packageName = GuestRuntimeRegistry.getGuestPackageName();
+        String mode = InstrumentationSettings.getModeForPackage(packageName);
+        GadgetLoadPlan plan = decide(GuestRuntimeRegistry.isInstrumentationEnabled(), mode,
+                GuestRuntimeRegistry.isPrimaryProcess());
+        if (plan == GadgetLoadPlan.DISABLED) {
             Log.i(TAG, "Instrumentation disabled for this guest process");
             return false;
         }
-        String packageName = GuestRuntimeRegistry.getGuestPackageName();
-        String mode = InstrumentationSettings.getModeForPackage(packageName);
-        if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode)
-                && !GuestRuntimeRegistry.isPrimaryProcess()) {
+        if (plan == GadgetLoadPlan.SKIP_SECONDARY) {
             Log.i(TAG, "Skipping on-device agent in secondary process "
                     + GuestRuntimeRegistry.getGuestProcessName());
             return false;
@@ -74,5 +75,29 @@ public final class FridaGadgetLoader {
 
     public static boolean isLoaded() {
         return loaded;
+    }
+
+    /** What loadIfEnabled() should do for a given (enabled, mode, primary) triple. */
+    enum GadgetLoadPlan {
+        LOAD_LISTENER, LOAD_LOCAL_SCRIPT, DEFER_LOCAL_SCRIPT, SKIP_SECONDARY, DISABLED
+    }
+
+    /** At process bind the on-device agent waits for the guest lifecycle; the listener loads now. */
+    static boolean shouldDeferAtBind(String mode) {
+        return InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode);
+    }
+
+    /** Pure load decision, no side effects, so it is unit-testable off-device. */
+    static GadgetLoadPlan decide(boolean enabled, String mode, boolean primary) {
+        if (!enabled || InstrumentationSettings.MODE_CLEAN.equals(mode)) {
+            return GadgetLoadPlan.DISABLED;
+        }
+        if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode) && !primary) {
+            return GadgetLoadPlan.SKIP_SECONDARY;
+        }
+        if (InstrumentationSettings.MODE_LOCAL_SCRIPT.equals(mode)) {
+            return GadgetLoadPlan.LOAD_LOCAL_SCRIPT;
+        }
+        return GadgetLoadPlan.LOAD_LISTENER;
     }
 }
