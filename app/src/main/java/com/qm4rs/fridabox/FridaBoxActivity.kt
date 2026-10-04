@@ -1944,14 +1944,14 @@ class FridaBoxActivity : AppCompatActivity() {
             setPadding(dp(18), dp(18), dp(18), dp(18))
         }
         controls.addView(body)
-        val port = numberInput(getString(R.string.fb_base_port), settings.getInt(InstrumentationSettings.KEY_BASE_PORT, 27042))
+        val port = numberInput(getString(R.string.fb_base_port), settings.getInt(InstrumentationSettings.KEY_BASE_PORT, 51073))
         val count = numberInput(getString(R.string.fb_scan_count), settings.getInt(InstrumentationSettings.KEY_SCAN_COUNT, 32))
         body.addView(port.first)
         body.addView(count.first)
         body.addView(primaryButton(getString(R.string.fb_save_settings)) {
             settings.edit()
                 .putInt(InstrumentationSettings.KEY_BASE_PORT,
-                    InstrumentationPreferenceParser.parsePort(port.second.text?.toString().orEmpty(), 27042))
+                    InstrumentationPreferenceParser.parsePort(port.second.text?.toString().orEmpty(), 51073))
                 .putInt(InstrumentationSettings.KEY_SCAN_COUNT,
                     InstrumentationPreferenceParser.parseScanCount(count.second.text?.toString().orEmpty(), 32))
                 .apply()

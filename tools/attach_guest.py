@@ -203,7 +203,7 @@ def main() -> int:
     parser.add_argument("--process", help="optional guest process name")
     parser.add_argument("--script", type=pathlib.Path, help="user JavaScript loaded after bootstrap")
     parser.add_argument("--keep-alive", action="store_true")
-    parser.add_argument("--base-port", type=int, default=27042)
+    parser.add_argument("--base-port", type=int, default=51073)
     parser.add_argument("--count", type=int, default=32)
     args = parser.parse_args()
     if not args.list and not args.package:

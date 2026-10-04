@@ -35,7 +35,7 @@ def forward_ports(adb: str, serial: str, base_port: int, count: int) -> None:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base-port", type=int, default=27042)
+    parser.add_argument("--base-port", type=int, default=51073)
     parser.add_argument("--count", type=int, default=32)
     args = parser.parse_args()
     adb = shutil.which("adb")
