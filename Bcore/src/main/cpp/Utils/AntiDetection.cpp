@@ -5,243 +5,109 @@
 #include <stdio.h>
 #include <string.h>
 #include <errno.h>
-#include <dirent.h>
 #include "Dobby/dobby.h"
 #include "xdl.h"
 
 #define LOG_TAG "AntiDetection"
 #define LOGD(...) __android_log_print(ANDROID_LOG_DEBUG, LOG_TAG, __VA_ARGS__)
 
-struct SpoofedProp {
-    const char* key;
-    const char* value;
+// Root binaries / directories apps probe for with access()/stat()/File.exists().
+// Deliberately conservative: only system / sbin / data-adb / data-local paths.
+// Never anything under /data/data or /data/user (that is app data for the guest
+// and for FridaBox itself — blocking it would break the sandbox).
+static const char* blocked_paths[] = {
+        "/system/bin/su",
+        "/system/xbin/su",
+        "/sbin/su",
+        "/su/bin/su",
+        "/system/sd/xbin/su",
+        "/system/bin/.ext/.su",
+        "/system/xbin/daemonsu",
+        "/system/xbin/mu",
+        "/system/app/Superuser.apk",
+        "/system/app/SuperSU.apk",
+        "/system/bin/magisk",
+        "/system/xbin/magisk",
+        "/sbin/magisk",
+        "/sbin/.magisk",
+        "/sbin/.core/mirror",
+        "/dev/.magisk",
+        "/cache/.disable_magisk",
+        "/data/adb/magisk",
+        "/data/adb/modules",
+        "/data/adb/ksu",
+        "/data/adb/ksud",
+        "/system/bin/busybox",
+        "/system/xbin/busybox",
+        "/data/local/su",
+        "/data/local/bin/su",
+        "/data/local/xbin/su",
+        "/data/local/tmp/su",
+        nullptr
 };
 
-
-static int (*orig_system_property_get)(const char *name, char *value) = nullptr;
-
-
-
-
-
-static const char* blocked_files[] = {
-    
-    "/system/xbin/su",
-    "/system/bin/su",
-    "/sbin/su",
-    "/system/app/Superuser.apk",
-    "/system/app/SuperSU.apk",
-    "/system/etc/init.d/99SuperSUDaemon",
-    "/system/xbin/daemonsu",
-    "/system/xbin/sugote",
-    "/system/bin/sugote-mksh",
-    "/system/xbin/sugote-mksh",
-    "/data/local/xbin/su",
-    "/data/local/bin/su",
-    "/data/local/tmp/su",
-    "/system/bin/magisk",
-    "/system/xbin/magisk",
-    "/sbin/magisk",
-    "/data/adb/magisk",
-    
-    
-    "/data/virtual",
-    "/data/data/com.benny.openlauncher",
-    "/data/data/io.va.exposed",
-    "/data/data/com.lody.virtual",
-    "/data/data/com.excelliance.dualaid",
-    "/data/data/com.lbe.parallel",
-    "/data/data/com.dual.dualspace",
-    "/data/data/com.ludashi.superboost",
-    "/data/data/com.qm4rs.fridabox",
-    "/blackbox",
-    "/virtual",
-    
-    
-    "/dev/vboxguest",
-    "/dev/vboxuser",
-    "/dev/qemu_pipe",
-    "/dev/goldfish_pipe",
-    "/dev/socket/qemud",
-    "/dev/socket/baseband_genyd",
-    "/dev/socket/genyd",
-    "/system/lib/libc_malloc_debug_qemu.so",
-    "/sys/qemu_trace",
-    "/system/bin/qemu-props",
-    "/system/bin/nox-prop",
-    "/sys/module/goldfish_audio",
-    "/sys/module/goldfish_sync",
-    "/proc/tty/drivers/goldfish",
-    "/dev/goldfish_events",
-    "/system/lib/libdroid4x.so",
-    "/system/bin/windroyed",
-    "/system/lib/libnoxspeedup.so",
-    "/system/lib/libmemu.so",
-    "/system/lib/libbluelog.so",
-    
-    
-    "/system/xposed.prop",
-    "/system/framework/XposedBridge.jar",
-    "/data/data/de.robv.android.xposed.installer",
-    "/data/data/org.meowcat.edxposed.manager",
-    "/data/data/top.canyie.dreamland.manager",
-    
-    nullptr
-};
-
-static const char* blocked_packages[] = {
-    "com.noshufou.android.su",
-    "com.noshufou.android.su.elite", 
-    "eu.chainfire.supersu",
-    "com.koushikdutta.superuser",
-    "com.thirdparty.superuser",
-    "com.yellowes.su",
-    "com.koushikdutta.rommanager",
-    "com.koushikdutta.rommanager.license",
-    "com.dimonvideo.luckypatcher",
-    "com.chelpus.lackypatch",
-    "com.ramdroid.appquarantine",
-    "com.ramdroid.appquarantinepro",
-    "com.devadvance.rootcloak",
-    "com.devadvance.rootcloakplus",
-    "de.robv.android.xposed.installer",
-    "com.saurik.substrate",
-    "com.zachspong.temprootremovejb",
-    "com.amphoras.hidemyroot",
-    "com.amphoras.hidemyrootadfree",
-    "com.formyhm.hiderootPremium",
-    "com.formyhm.hideroot",
-    "me.phh.superuser",
-    "eu.chainfire.supersu.pro",
-    "com.kingouser.com",
-    "com.topjohnwu.magisk",
-    "com.lody.virtual",
-    "io.va.exposed",
-    "com.benny.openlauncher",
-    nullptr
-};
-
-static bool is_blocked_file(const char* path) {
-    if (!path) return false;
-    for (int i = 0; blocked_files[i]; ++i) {
-        if (strstr(path, blocked_files[i])) {
+static bool is_blocked(const char* path) {
+    if (path == nullptr) return false;
+    // Never touch app-data paths — the guest and FridaBox live there.
+    if (strncmp(path, "/data/data/", 11) == 0) return false;
+    if (strncmp(path, "/data/user/", 11) == 0) return false;
+    for (int i = 0; blocked_paths[i] != nullptr; ++i) {
+        if (strcmp(path, blocked_paths[i]) == 0) {
             return true;
         }
     }
     return false;
 }
 
-static bool is_blocked_package(const char* path) {
-    if (!path) return false;
-    for (int i = 0; blocked_packages[i]; ++i) {
-        if (strstr(path, blocked_packages[i])) {
-            return true;
-        }
-    }
-    return false;
-}
+static int (*orig_access)(const char*, int) = nullptr;
+static int (*orig_stat)(const char*, struct stat*) = nullptr;
+static int (*orig_lstat)(const char*, struct stat*) = nullptr;
+static FILE* (*orig_fopen)(const char*, const char*) = nullptr;
 
-
-static int (*orig_access)(const char *pathname, int mode) = nullptr;
-static int (*orig_stat)(const char *pathname, struct stat *buf) = nullptr;
-static int (*orig_lstat)(const char *pathname, struct stat *buf) = nullptr;
-static FILE* (*orig_fopen)(const char *pathname, const char *mode) = nullptr;
-static int (*orig_open)(const char *pathname, int flags, ...) = nullptr;
-static ssize_t (*orig_readlink)(const char *pathname, char *buf, size_t bufsiz) = nullptr;
-static DIR* (*orig_opendir)(const char *name) = nullptr;
-
-
-
-static bool is_safe_path(const char* path) {
-    if (!path) return false;
-    if (strstr(path, "/proc/net/")) return true;
-    if (strstr(path, "/dev/socket/")) return true;
-    return false;
-}
-
-static int my_access(const char *pathname, int mode) {
-    if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
-        errno = ENOENT;
-        return -1;
-    }
+static int my_access(const char* pathname, int mode) {
+    if (is_blocked(pathname)) { errno = ENOENT; return -1; }
     return orig_access ? orig_access(pathname, mode) : -1;
 }
 
-static int my_stat(const char *pathname, struct stat *buf) {
-    if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
-        errno = ENOENT;
-        return -1;
-    }
+static int my_stat(const char* pathname, struct stat* buf) {
+    if (is_blocked(pathname)) { errno = ENOENT; return -1; }
     return orig_stat ? orig_stat(pathname, buf) : -1;
 }
 
-static int my_lstat(const char *pathname, struct stat *buf) {
-    if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
-        errno = ENOENT;
-        return -1;
-    }
+static int my_lstat(const char* pathname, struct stat* buf) {
+    if (is_blocked(pathname)) { errno = ENOENT; return -1; }
     return orig_lstat ? orig_lstat(pathname, buf) : -1;
 }
 
-static FILE* my_fopen(const char *pathname, const char *mode) {
-    if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
-        errno = ENOENT;
-        return nullptr;
-    }
+static FILE* my_fopen(const char* pathname, const char* mode) {
+    if (is_blocked(pathname)) { errno = ENOENT; return nullptr; }
     return orig_fopen ? orig_fopen(pathname, mode) : nullptr;
 }
 
-static int my_open(const char *pathname, int flags, ...) {
-    if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
-        errno = ENOENT;
-        return -1;
+static void hook_one(void* handle, const char* sym, void* replace, void** orig) {
+    void* target = xdl_dsym(handle, sym, nullptr);
+    if (!target) target = xdl_sym(handle, sym, nullptr);
+    if (!target) { LOGD("symbol not found: %s", sym); return; }
+    if (DobbyHook(target, replace, orig) == 0) {
+        LOGD("hooked %s", sym);
+    } else {
+        LOGD("hook failed: %s", sym);
     }
-    if (orig_open) {
-        if (flags & O_CREAT) {
-            va_list args;
-            va_start(args, flags);
-            mode_t mode = va_arg(args, mode_t);
-            va_end(args);
-            return orig_open(pathname, flags, mode);
-        } else {
-            return orig_open(pathname, flags);
-        }
-    }
-    return -1;
 }
 
-static ssize_t my_readlink(const char *pathname, char *buf, size_t bufsiz) {
-    if (pathname && !is_safe_path(pathname) && (is_blocked_file(pathname) || is_blocked_package(pathname))) {
-        errno = ENOENT;
-        return -1;
-    }
-    return orig_readlink ? orig_readlink(pathname, buf, bufsiz) : -1;
-}
-
-static DIR* my_opendir(const char *name) {
-    if (name && !is_safe_path(name) && (is_blocked_file(name) || is_blocked_package(name))) {
-        errno = ENOENT;
-        return nullptr;
-    }
-    return orig_opendir ? orig_opendir(name) : nullptr;
-}
-
-
+// Hook only the existence-check calls (access/stat/lstat/fopen). open/opendir are
+// left alone to keep the guest's hot IO path untouched.
 static void install_file_hooks() {
     void* handle = xdl_open("libc.so", XDL_DEFAULT);
-    if (!handle) {
-        LOGD("xdl_open failed for libc.so");
-        return;
-    }
-
-
+    if (!handle) { LOGD("xdl_open libc.so failed"); return; }
+    hook_one(handle, "access", (void*) my_access, (void**) &orig_access);
+    hook_one(handle, "stat", (void*) my_stat, (void**) &orig_stat);
+    hook_one(handle, "lstat", (void*) my_lstat, (void**) &orig_lstat);
+    hook_one(handle, "fopen", (void*) my_fopen, (void**) &orig_fopen);
     xdl_close(handle);
-    LOGD("File system hooks installed");
+    LOGD("root-path file hooks installed");
 }
 
-
 __attribute__((constructor)) void install_antidetection_hooks() {
-    LOGD("Installing anti-detection hooks...");
-    install_file_hooks(); 
-    LOGD("Anti-detection hooks installation complete");
+    install_file_hooks();
 }

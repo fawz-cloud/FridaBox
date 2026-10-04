@@ -51,17 +51,21 @@ public class SystemProviderStub extends ClassInvocationStub implements BContentP
         
         
         if ("call".equals(methodName)) {
-            
+
             if (args != null) {
                 Class<?> attributionSourceClass = BRAttributionSource.getRealClass();
                 for (int i = 0; i < args.length; i++) {
                     Object arg = args[i];
-                    
-                    if (arg != null && attributionSourceClass != null && 
+
+                    if (arg != null && attributionSourceClass != null &&
                             arg.getClass().getName().equals(attributionSourceClass.getName())) {
                         ContextCompat.fixAttributionSourceState(arg, BlackBoxCore.getHostUid());
                     }
                 }
+            }
+            android.os.Bundle spoofed = EnvironmentSpoof.spoofSettingsCall(args);
+            if (spoofed != null) {
+                return spoofed;
             }
             return method.invoke(mBase, args);
         }
