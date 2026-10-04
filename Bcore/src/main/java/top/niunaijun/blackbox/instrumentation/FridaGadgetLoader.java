@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 /** Loads Frida Gadget at most once in the current Linux process. */
 public final class FridaGadgetLoader {
-    private static final String TAG = "FridaBox.Gadget";
+    private static final String TAG = "Palka.Gadget";
     private static final AtomicBoolean ATTEMPTED = new AtomicBoolean(false);
     private static final Object LOAD_LOCK = new Object();
     private static volatile boolean loaded;

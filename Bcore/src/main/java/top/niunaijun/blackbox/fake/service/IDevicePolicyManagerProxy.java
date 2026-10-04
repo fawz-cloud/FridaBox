@@ -57,7 +57,7 @@ public class IDevicePolicyManagerProxy extends BinderInvocationStub {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return "FridaBox";
+            return "Palka";
         }
     }
 
@@ -66,7 +66,7 @@ public class IDevicePolicyManagerProxy extends BinderInvocationStub {
 
         @Override
         protected Object hook(Object who, Method method, Object[] args) throws Throwable {
-            return "FridaBox";
+            return "Palka";
         }
     }
 

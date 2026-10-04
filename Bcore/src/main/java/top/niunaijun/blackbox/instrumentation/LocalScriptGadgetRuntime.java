@@ -15,12 +15,12 @@ import top.niunaijun.blackbox.BlackBoxCore;
 
 /** Prepares a private Gadget copy configured to autonomously load one guest agent. */
 final class LocalScriptGadgetRuntime {
-    private static final String AGENT_ROOT = "fridabox-agents";
+    private static final String AGENT_ROOT = "guest-agents";
     private static final String AGENT_NAME = "agent.js";
-    private static final String INSTRUMENTED_AGENT_NAME = "fridabox-runtime.js";
+    private static final String INSTRUMENTED_AGENT_NAME = "guest-runtime.js";
     private static final String LOG_NAME = "runtime.jsonl";
-    private static final String RUNTIME_NAME = "libfridabox-agent.so";
-    private static final String CONFIG_NAME = "libfridabox-agent.config.so";
+    private static final String RUNTIME_NAME = "libguest-runtime.so";
+    private static final String CONFIG_NAME = "libguest-runtime.config.so";
 
     private LocalScriptGadgetRuntime() {
     }
@@ -33,7 +33,7 @@ final class LocalScriptGadgetRuntime {
         File root = new File(context.getFilesDir(), AGENT_ROOT).getCanonicalFile();
         File script = new File(scriptPath).getCanonicalFile();
         if (!isInside(root, script) || !AGENT_NAME.equals(script.getName()) || !script.isFile()) {
-            throw new IOException("Selected JavaScript agent is outside FridaBox private storage");
+            throw new IOException("Selected JavaScript agent is outside Palka private storage");
         }
         if (!script.setReadable(true, true) || !script.setWritable(false, false)) {
             throw new IOException("Unable to secure the selected JavaScript agent");
@@ -100,20 +100,20 @@ final class LocalScriptGadgetRuntime {
                 "      }\n" +
                 "      const stream = new File(logPath, 'a');\n" +
                 "      try { stream.write(line); stream.flush(); } finally { stream.close(); }\n" +
-                "    } catch (error) { try { original.error.call(console, '[FridaBox log bridge]', error.stack || error); } catch (_) {} }\n" +
+                "    } catch (error) { try { original.error.call(console, '[Palka log bridge]', error.stack || error); } catch (_) {} }\n" +
                 "  }\n" +
                 "  console.log = function () { append('log', arguments); return original.log.apply(console, arguments); };\n" +
                 "  console.warn = function () { append('warn', arguments); return original.warn.apply(console, arguments); };\n" +
                 "  console.error = function () { append('error', arguments); return original.error.apply(console, arguments); };\n" +
                 "  const wrappedSend = function (payload, data) { append('send', [payload]); return original.send(payload, data); };\n" +
-                "  Object.defineProperty(globalThis, '__fridaboxSend', { value: wrappedSend, configurable: true });\n" +
+                "  Object.defineProperty(globalThis, '__palkaSend', { value: wrappedSend, configurable: true });\n" +
                 "  try {\n" +
                 "    const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'send');\n" +
                 "    if (!descriptor || descriptor.writable) globalThis.send = wrappedSend;\n" +
                 "    else if (descriptor.configurable) Object.defineProperty(globalThis, 'send', Object.assign({}, descriptor, { value: wrappedSend }));\n" +
                 "  } catch (error) { append('system', ['send() capture unavailable: ' + error]); }\n" +
                 "  append('system', ['On-device agent started']);\n" +
-                "  } catch (error) { try { console.error('[FridaBox log bridge]', error.stack || error); } catch (_) {} }\n" +
+                "  } catch (error) { try { console.error('[Palka log bridge]', error.stack || error); } catch (_) {} }\n" +
                 "})();\n";
     }
 
@@ -195,7 +195,7 @@ final class LocalScriptGadgetRuntime {
         }
         prefixOutput.write("(function (send) {\n".getBytes(StandardCharsets.UTF_8));
         byte[] prefix = prefixOutput.toByteArray();
-        byte[] suffix = "\n})(globalThis.__fridaboxSend);\n".getBytes(StandardCharsets.UTF_8);
+        byte[] suffix = "\n})(globalThis.__palkaSend);\n".getBytes(StandardCharsets.UTF_8);
         if (offset > 0) return instrumentBundle(source, prefix, suffix, offset);
         ByteArrayOutputStream output = new ByteArrayOutputStream(source.length + prefix.length + suffix.length);
         output.write(prefix, 0, prefix.length);

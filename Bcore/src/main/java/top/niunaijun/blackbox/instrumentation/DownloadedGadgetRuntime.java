@@ -15,7 +15,7 @@ import top.niunaijun.blackbox.utils.ProcessAbi;
 /** Resolves a selected, downloaded Gadget and prepares per-guest runtime copies. */
 final class DownloadedGadgetRuntime {
     private static final String DOWNLOAD_ROOT = "fridabox-gadgets";
-    private static final String RUNTIME_ROOT = "fridabox-gadget-runtimes";
+    private static final String RUNTIME_ROOT = "guest-runtimes";
     private static final String RUNTIME_NAME = "libpayload.so";
     private static final String CONFIG_NAME = "libpayload.config.so";
     private static final String SOURCE_NAME = "payload.source";

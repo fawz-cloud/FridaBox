@@ -15,7 +15,7 @@ import top.niunaijun.blackbox.instrumentation.FridaGadgetLoader
 import top.niunaijun.blackbox.instrumentation.GuestRuntimeRegistry
 
 object FridaBoxRuntime {
-    private const val TAG = "FridaBox.Runtime"
+    private const val TAG = "Palka.Runtime"
     private const val AGENT_READY_FALLBACK_MS = 5_000L
 
     fun attach(context: Context) {

@@ -1422,7 +1422,7 @@ class FridaBoxActivity : AppCompatActivity() {
         setLoading(true)
         worker.execute {
             val result = runCatching {
-                require(packageName != this.packageName) { "FridaBox cannot import itself" }
+                require(packageName != this.packageName) { "Palka cannot import itself" }
                 val info = packageManager.getPackageInfo(packageName, PackageManager.GET_META_DATA)
                 val appInfo = requireNotNull(info.applicationInfo) { "Application metadata is unavailable" }
                 val apkFiles = buildList {
@@ -1433,7 +1433,7 @@ class FridaBoxActivity : AppCompatActivity() {
                     "Installed APK files are unavailable"
                 }
                 val processAbi = requireNotNull(ProcessAbi.detect(this)) {
-                    "Unable to determine the FridaBox process ABI"
+                    "Unable to determine the Palka process ABI"
                 }
                 val abi = ApkInspector.inspect(apkFiles, processAbi)
                 if (!abi.supported) error("Unsupported native ABI: ${abi.description()}")
@@ -1497,7 +1497,7 @@ class FridaBoxActivity : AppCompatActivity() {
                     ?: error("Android could not parse this APK")
                 if (!archiveInfo.splitNames.isNullOrEmpty()) error("Split-only APKs are not supported")
                 val processAbi = requireNotNull(ProcessAbi.detect(this)) {
-                    "Unable to determine the FridaBox process ABI"
+                    "Unable to determine the Palka process ABI"
                 }
                 val abi = ApkInspector.inspect(listOf(temporary), processAbi)
                 if (!abi.supported) error("Unsupported native ABI: ${abi.description()}")
@@ -1971,7 +1971,7 @@ class FridaBoxActivity : AppCompatActivity() {
         ))
         binding.content.addView(messageCard(
             getString(R.string.fb_about_title),
-            "${getString(R.string.fb_about_body)}\n\nFridaBox ${BuildConfig.VERSION_NAME}",
+            "${getString(R.string.fb_about_body)}\n\nPalka ${BuildConfig.VERSION_NAME}",
             R.color.fb_primary
         ))
     }
@@ -2281,12 +2281,12 @@ class FridaBoxActivity : AppCompatActivity() {
     }
 
     private fun agentDirectory(packageName: String, userId: Int): File {
-        val base = File(File(filesDir, "fridabox-agents"), safePackageName(packageName))
+        val base = File(File(filesDir, "guest-agents"), safePackageName(packageName))
         return if (userId == 0) base else File(base, "u$userId")
     }
 
     private fun deleteAgentDirectory(packageName: String, userId: Int) {
-        val root = File(filesDir, "fridabox-agents").canonicalFile
+        val root = File(filesDir, "guest-agents").canonicalFile
         val directory = agentDirectory(packageName, userId).canonicalFile
         if (!directory.path.startsWith(root.path + File.separator)) return
         directory.listFiles()?.forEach { child -> if (child.isFile) child.delete() }

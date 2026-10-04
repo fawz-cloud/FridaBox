@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="fb_brand">FridaBox</string>
-    <string name="fb_brand_tagline">Mobile instrumentation workspace</string>
+    <string name="fb_brand">Palka</string>
+    <string name="fb_brand_tagline">Private app space</string>
     <string name="fb_nav_workspace">Workspace</string>
     <string name="fb_nav_gadgets">Gadgets</string>
     <string name="fb_nav_settings">Settings</string>
@@ -35,11 +35,11 @@
     <string name="fb_base_port">Gadget base port</string>
     <string name="fb_scan_count">Port discovery range</string>
     <string name="fb_security_title">Run only agents you trust</string>
-    <string name="fb_security_body">An on-device agent executes inside the virtual guest process and has the same access as that process. FridaBox stores a private byte-for-byte copy of the selected file.</string>
+    <string name="fb_security_body">An on-device agent executes inside the virtual guest process and has the same access as that process. Palka stores a private byte-for-byte copy of the selected file.</string>
     <string name="fb_about_title">Independent by design</string>
-    <string name="fb_about_body">FridaBox combines a private Android virtualization layer with Frida Gadget. It does not modify imported APKs and it does not require root.</string>
+    <string name="fb_about_body">Palka combines a private Android virtualization layer with Frida Gadget. It does not modify imported APKs and it does not require root.</string>
     <string name="fb_choose_trusted_title">Choose a trusted JavaScript agent?</string>
-    <string name="fb_choose_trusted_body">The file will be copied into FridaBox private storage and executed automatically whenever this guest starts in On-device mode.</string>
+    <string name="fb_choose_trusted_body">The file will be copied into Palka private storage and executed automatically whenever this guest starts in On-device mode.</string>
     <string name="fb_choose">Choose file</string>
     <string name="fb_cancel">Cancel</string>
     <string name="fb_computer_launch_title">Ready to attach from a computer?</string>
@@ -47,7 +47,7 @@
     <string name="fb_clear_data">Clear guest data</string>
     <string name="fb_remove_guest">Remove guest</string>
     <string name="fb_remove_title">Remove this guest?</string>
-    <string name="fb_remove_body">The virtual app, its virtual data, and its saved on-device agent will be removed from FridaBox. The Android PackageManager installation is not changed.</string>
+    <string name="fb_remove_body">The virtual app, its virtual data, and its saved on-device agent will be removed from Palka. The Android PackageManager installation is not changed.</string>
     <string name="fb_remove">Remove</string>
     <string name="fb_add_instance">Add instance</string>
     <string name="fb_remove_instance">Remove this instance</string>
